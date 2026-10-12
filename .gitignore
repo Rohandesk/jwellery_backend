@@ -1,0 +1,103 @@
+# ==============================================================================
+# SECRETS & ENVIRONMENT CONFIGURATIONS
+# Never commit sensitive API keys, database passwords, or production variables.
+# ==============================================================================
+.env
+.env.local
+.env.dev
+.env.production
+.env*.local
+*.pem
+*.key
+
+# Preserve an example file so teammates know what environment variables to set up
+!.env.example
+
+# ==============================================================================
+# DEPENDENCIES & PACKAGE MANAGERS
+# Large external packages should be installed locally via a package manager.
+# ==============================================================================
+# Node.js / Express / NestJS
+node_modules/
+jspm_packages/
+.npm/
+.eslintcache
+
+# Python / Django / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.poetry/
+
+# Go
+/vendor/
+
+# Ruby on Rails
+/vendor/bundle/
+.bundle/
+
+# ==============================================================================
+# RUNTIME LOGS & TEMPORARY DATA
+# Exclude server runtime execution files, application logs, and process IDs.
+# ==============================================================================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.pid
+*.seed
+*.pid.lock
+pids/
+tmp/
+
+# ==============================================================================
+# BUILD & COMPILED OUTPUTS
+# Compiled binary distributions or production assets.
+# ==============================================================================
+dist/
+build/
+bin/
+out/
+Release/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ==============================================================================
+# DATABASES & CACHES
+# Avoid committing local databases that leak dev data or break local environments.
+# ==============================================================================
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.db
+.redis/
+
+# ==============================================================================
+# SYSTEM & IDE CONFIGURATIONS
+# Developer-specific workspaces or operating system clutter.
+# ==============================================================================
+# macOS
+.DS_Store
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# JetBrains / PyCharm / WebStorm / GoLand
+.idea/
+*.iml
+
+# Visual Studio Code
+.vscode/
+!.vscode/extensions.json
+
+# Docker (if you use custom local data persistence)
+.docker/data/
