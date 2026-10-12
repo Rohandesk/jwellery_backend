@@ -95,7 +95,9 @@ const updateGoldPrice = async (req, res) => {
       buyPrice: Number(buyPrice),
       sellPrice: Number(sellPrice),
       gstRate: gstRate ? Number(gstRate) : 3,
-      updatedBy: req.admin ? req.admin._id : null
+      ...(req.admin
+        ? { updatedBy: req.admin._id }
+        : { updatedByMasterAdmin: req.masterAdmin._id }),
     });
     res.status(200).json({ success: true, message: 'Gold price updated successfully', data: newPrice });
   } catch (error) {

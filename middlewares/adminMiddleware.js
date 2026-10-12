@@ -1,14 +1,24 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const Admin = require('../models/Admin');
+const MasterAdmin = require('../models/MasterAdmin');
 
 const protectAdmin = async (req, res, next) => {
-  let token;
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
-      token = req.headers.authorization.split(' ')[1];
+      const token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production');
-      
+
+      if (decoded.isMasterAdmin) {
+        const masterAdmin = await MasterAdmin.findById(decoded.id);
+        if (!masterAdmin || masterAdmin.status !== 'ACTIVE') {
+          return res.status(401).json({ success: false, message: 'Master admin session invalid' });
+        }
+
+        req.masterAdmin = masterAdmin;
+        return next();
+      }
+
       if (!decoded.isAdmin) {
         return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
       }
@@ -26,9 +36,7 @@ const protectAdmin = async (req, res, next) => {
     }
   }
 
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Admin token missing' });
-  }
+  return res.status(401).json({ success: false, message: 'Admin token missing' });
 };
 
 const convertPasswordToHash = async(password) => {

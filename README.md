@@ -44,6 +44,8 @@ Master admins can manage normal admins using a master-admin bearer token:
 
 Normal admins default to `ACTIVE`; inactive admins cannot log in or access protected admin actions.
 
+Active master admins can also use all endpoints protected by normal admin authentication, including dashboard stats, gold price and theme updates, notifications, user listing, and carousel create/update/status/delete actions. This grants global access to the shared backend data; inactive or suspended master admins are denied.
+
 ## Frontend configuration
 
 Set `VITE_API_BASE_URL` in the frontend host to the public API URL ending in `/api/v1`, for example:
