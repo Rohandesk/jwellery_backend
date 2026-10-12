@@ -24,7 +24,16 @@ Set these backend environment variables in the host dashboard:
 
 In production the service exits during startup if the database, JWT, CORS, or Firebase configuration is missing or invalid. Do not commit `.env`, database credentials, JWT secrets, or Firebase service-account files.
 
-Register the first master admin with `POST /api/v1/masteradmin/register` and the `x-master-admin-setup-key` header. After creation, the registration endpoint refuses further registrations. Use the master-admin account to create normal admins. Admin login does not create accounts from public default credentials.
+Register the first master admin with `POST /api/v1/masteradmin/register` and the `x-master-admin-setup-key` header. The registration endpoint refuses further registrations while a master-admin account exists. If the account is deleted, setup-key-authorized registration can create a replacement.
+
+Master admins must use a verified active master-admin bearer token for these account endpoints:
+
+- `GET /api/v1/masteradmin/masteradmins` lists master admins.
+- `GET /api/v1/masteradmin/masteradmins/:id` retrieves the authenticated master admin's own account.
+- `PATCH /api/v1/masteradmin/masteradmins/:id` updates the authenticated master admin's own email, name, mobile, or password.
+- `DELETE /api/v1/masteradmin/masteradmins/:id` deletes the authenticated master admin's own account.
+
+The `:id` must match the authenticated master admin. Inactive or suspended master admins cannot use these endpoints.
 
 Master admins can manage normal admins using a master-admin bearer token:
 

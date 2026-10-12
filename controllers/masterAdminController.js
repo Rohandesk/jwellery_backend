@@ -133,6 +133,104 @@ const loginMasterAdmin = async (req, res) => {
   }
 };
 
+const getMasterAdmins = async (req, res) => {
+  try {
+    const masterAdmins = await MasterAdmin.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      data: masterAdmins.map(publicMasterAdmin),
+    });
+  } catch (error) {
+    console.error('Master admin listing error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getMasterAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid master admin ID' });
+  }
+
+  try {
+    const masterAdmin = await MasterAdmin.findById(req.params.id);
+    if (!masterAdmin) {
+      return res.status(404).json({ success: false, message: 'Master admin not found' });
+    }
+    return res.status(200).json({ success: true, data: publicMasterAdmin(masterAdmin) });
+  } catch (error) {
+    console.error('Master admin retrieval error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateMasterAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid master admin ID' });
+  }
+
+  try {
+    const masterAdmin = await MasterAdmin.findById(req.params.id);
+    if (!masterAdmin) {
+      return res.status(404).json({ success: false, message: 'Master admin not found' });
+    }
+
+    const { email, firstname, lastname, mobile, password } = req.body || {};
+    if (![email, firstname, lastname, mobile, password].some((value) => value !== undefined)) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one master admin field must be provided',
+      });
+    }
+    if (email !== undefined) masterAdmin.email = email;
+    if (firstname !== undefined) masterAdmin.firstname = firstname;
+    if (lastname !== undefined) masterAdmin.lastname = lastname;
+    if (mobile !== undefined) masterAdmin.mobile = String(mobile);
+    if (password !== undefined) {
+      if (!password) {
+        return res.status(400).json({ success: false, message: 'Password cannot be empty' });
+      }
+      masterAdmin.password = await bcrypt.hash(password, 12);
+    }
+
+    const updatedMasterAdmin = await masterAdmin.save();
+    return res.status(200).json({
+      success: true,
+      message: 'Master admin updated successfully',
+      data: publicMasterAdmin(updatedMasterAdmin),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Master admin email or mobile already exists' });
+    }
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error('Master admin update error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const deleteMasterAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid master admin ID' });
+  }
+
+  try {
+    const masterAdmin = await MasterAdmin.findByIdAndDelete(req.params.id);
+    if (!masterAdmin) {
+      return res.status(404).json({ success: false, message: 'Master admin not found' });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Master admin deleted successfully',
+      data: publicMasterAdmin(masterAdmin),
+    });
+  } catch (error) {
+    console.error('Master admin deletion error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const createAdmin = async (req, res) => {
   try {
     const { email, password, firstname, lastname, mobile, status } = req.body || {};
@@ -270,6 +368,10 @@ const deleteAdmin = async (req, res) => {
 module.exports = {
   registerMasterAdmin,
   loginMasterAdmin,
+  getMasterAdmins,
+  getMasterAdmin,
+  updateMasterAdmin,
+  deleteMasterAdmin,
   createAdmin,
   getAdmins,
   getAdmin,

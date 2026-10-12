@@ -43,4 +43,14 @@ const protectMasterAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { protectMasterAdmin };
+const protectOwnMasterAdmin = (req, res, next) => {
+  if (String(req.masterAdmin._id) !== req.params.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'Master admins can only manage their own account',
+    });
+  }
+  return next();
+};
+
+module.exports = { protectMasterAdmin, protectOwnMasterAdmin };
