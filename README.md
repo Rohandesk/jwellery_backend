@@ -26,6 +26,15 @@ In production the service exits during startup if the database, JWT, CORS, or Fi
 
 Register the first master admin with `POST /api/v1/masteradmin/register` and the `x-master-admin-setup-key` header. After creation, the registration endpoint refuses further registrations. Use the master-admin account to create normal admins. Admin login does not create accounts from public default credentials.
 
+Master admins can manage normal admins using a master-admin bearer token:
+
+- `POST /api/v1/masteradmin/admins` creates an admin (`email`, `password`, and `mobile` are required).
+- `GET /api/v1/masteradmin/admins` lists admins; `GET /api/v1/masteradmin/admins/:id` retrieves one.
+- `PATCH /api/v1/masteradmin/admins/:id` updates admin fields, including `status` (`ACTIVE` or `INACTIVE`).
+- `DELETE /api/v1/masteradmin/admins/:id` deletes an admin.
+
+Normal admins default to `ACTIVE`; inactive admins cannot log in or access protected admin actions.
+
 ## Frontend configuration
 
 Set `VITE_API_BASE_URL` in the frontend host to the public API URL ending in `/api/v1`, for example:

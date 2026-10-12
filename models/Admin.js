@@ -14,9 +14,15 @@ const adminSchema = new mongoose.Schema(
     lastname: { type: String, default: "Admin User" },
     role: {
       type: String,
-      enum: ["Admin"]
+      enum: ["Admin"],
+      default: "Admin",
     },
     mobile: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: ["ACTIVE", "INACTIVE"],
+      default: "ACTIVE",
+    },
   },
   { timestamps: true },
 );

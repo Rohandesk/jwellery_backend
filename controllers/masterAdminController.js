@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const Admin = require('../models/Admin');
 const MasterAdmin = require('../models/MasterAdmin');
 
@@ -21,6 +22,16 @@ const publicMasterAdmin = (masterAdmin) => ({
   mobile: masterAdmin.mobile,
   role: masterAdmin.role,
   status: masterAdmin.status,
+});
+
+const publicAdmin = (admin) => ({
+  id: admin._id,
+  email: admin.email,
+  firstname: admin.firstname,
+  lastname: admin.lastname,
+  role: admin.role,
+  mobile: admin.mobile,
+  status: admin.status,
 });
 
 const registerMasterAdmin = async (req, res) => {
@@ -122,9 +133,9 @@ const loginMasterAdmin = async (req, res) => {
   }
 };
 
-const createMasterAdmin = async (req, res) => {
+const createAdmin = async (req, res) => {
   try {
-    const { email, password, firstname, lastname, role, mobile } = req.body;
+    const { email, password, firstname, lastname, mobile, status } = req.body || {};
 
     if (!email || !password || !mobile) {
       return res.status(400).json({
@@ -137,23 +148,17 @@ const createMasterAdmin = async (req, res) => {
     const admin = await Admin.create({
       email,
       password: passwordHash,
-      firstname: firstname,
-      lastname: lastname,
-      role: role ,
+      firstname,
+      lastname,
+      role: 'Admin',
       mobile,
+      ...(status !== undefined && { status }),
     });
 
     return res.status(201).json({
       success: true,
       message: 'Admin created successfully',
-      data: {
-        id: admin._id,
-        email: admin.email,
-        firstname: admin.firstname,
-        lastname: admin.lastname,
-        role: admin.role,
-        mobile: admin.mobile,
-      },
+      data: publicAdmin(admin),
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -169,4 +174,105 @@ const createMasterAdmin = async (req, res) => {
   }
 };
 
-module.exports = { registerMasterAdmin, loginMasterAdmin, createMasterAdmin };
+const getAdmins = async (req, res) => {
+  try {
+    const admins = await Admin.find().sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, data: admins.map(publicAdmin) });
+  } catch (error) {
+    console.error('Admin listing error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid admin ID' });
+  }
+
+  try {
+    const admin = await Admin.findById(req.params.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+    return res.status(200).json({ success: true, data: publicAdmin(admin) });
+  } catch (error) {
+    console.error('Admin retrieval error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid admin ID' });
+  }
+
+  try {
+    const admin = await Admin.findById(req.params.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+
+    const { email, firstname, lastname, mobile, status, password } = req.body || {};
+    if (![email, firstname, lastname, mobile, status, password].some((value) => value !== undefined)) {
+      return res.status(400).json({ success: false, message: 'At least one admin field must be provided' });
+    }
+    if (email !== undefined) admin.email = email;
+    if (firstname !== undefined) admin.firstname = firstname;
+    if (lastname !== undefined) admin.lastname = lastname;
+    if (mobile !== undefined) admin.mobile = mobile;
+    if (status !== undefined) admin.status = status;
+    if (password !== undefined) {
+      if (!password) {
+        return res.status(400).json({ success: false, message: 'Password cannot be empty' });
+      }
+      admin.password = await bcrypt.hash(password, 12);
+    }
+
+    const updatedAdmin = await admin.save();
+    return res.status(200).json({
+      success: true,
+      message: 'Admin updated successfully',
+      data: publicAdmin(updatedAdmin),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Admin email or mobile already exists' });
+    }
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error('Admin update error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const deleteAdmin = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid admin ID' });
+  }
+
+  try {
+    const admin = await Admin.findByIdAndDelete(req.params.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Admin deleted successfully',
+      data: publicAdmin(admin),
+    });
+  } catch (error) {
+    console.error('Admin deletion error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = {
+  registerMasterAdmin,
+  loginMasterAdmin,
+  createAdmin,
+  getAdmins,
+  getAdmin,
+  updateAdmin,
+  deleteAdmin,
+};

@@ -27,7 +27,7 @@ const adminLogin = async (req, res) => {
       ? await bcrypt.compare(password, adminDoc.password)
       : false;
 
-    if (!adminDoc || !passwordMatches) {
+    if (!adminDoc || adminDoc.status !== 'ACTIVE' || !passwordMatches) {
       return res.status(401).json({ success: false, message: 'Invalid admin email or password' });
     }
 
@@ -43,7 +43,8 @@ const adminLogin = async (req, res) => {
           lastname: adminDoc.lastname,
           email: adminDoc.email,
           role: adminDoc.role,
-          mobile: adminDoc.mobile
+          mobile: adminDoc.mobile,
+          status: adminDoc.status
         }
       }
     });

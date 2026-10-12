@@ -17,6 +17,9 @@ const protectAdmin = async (req, res, next) => {
       if (!req.admin) {
         return res.status(401).json({ success: false, message: 'Admin session invalid' });
       }
+      if (req.admin.status !== 'ACTIVE') {
+        return res.status(403).json({ success: false, message: 'Active admin status required' });
+      }
       return next();
     } catch (error) {
       return res.status(401).json({ success: false, message: 'Admin authorization failed' });
