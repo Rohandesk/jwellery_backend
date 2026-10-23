@@ -5,19 +5,34 @@ const Carousel = require('../models/Carousel');
 // @access  Public
 exports.getAllCarousels = async (req, res, next) => {
   try {
-    const { position, status } = req.query;
-    const filter = {};
+    const { position } = req.query;
+    const filter = { jewellerId: req.jewellerId, status: true };
 
     if (position && position !== 'All') {
       filter.position = position;
     }
 
-    if (status !== undefined) {
-      filter.status = status === 'true' || status === true;
+    const carousels = await Carousel.find(filter).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: carousels.length,
+      data: carousels,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.getAllCarouselsForAdmin = async (req, res, next) => {
+  try {
+    const { position } = req.query;
+    const filter = { jewellerId: req.jewellerId };
+    if (position && position !== 'All') {
+      filter.position = position;
     }
 
     const carousels = await Carousel.find(filter).sort({ createdAt: -1 });
-
     return res.status(200).json({
       success: true,
       count: carousels.length,
@@ -33,7 +48,11 @@ exports.getAllCarousels = async (req, res, next) => {
 // @access  Public
 exports.getCarouselById = async (req, res, next) => {
   try {
-    const carousel = await Carousel.findById(req.params.id);
+    const carousel = await Carousel.findOne({
+      _id: req.params.id,
+      jewellerId: req.jewellerId,
+      status: true,
+    });
 
     if (!carousel) {
       return res.status(404).json({
@@ -69,6 +88,7 @@ exports.createCarousel = async (req, res, next) => {
     const validPosition = allowedPositions.includes(position) ? position : 'Home Top';
 
     const carousel = await Carousel.create({
+      jewellerId: req.jewellerId,
       name,
       position: validPosition,
       type: type || 'Horizontal',
@@ -111,7 +131,10 @@ exports.updateCarousel = async (req, res, next) => {
     if (image !== undefined) updateData.image = image;
     if (status !== undefined) updateData.status = String(status) === 'true' || status === true;
 
-    const carousel = await Carousel.findByIdAndUpdate(req.params.id, updateData, {
+    const carousel = await Carousel.findOneAndUpdate({
+      _id: req.params.id,
+      jewellerId: req.jewellerId,
+    }, updateData, {
       new: true,
       runValidators: true,
     });
@@ -148,8 +171,8 @@ exports.toggleStatus = async (req, res, next) => {
     }
 
     const newStatus = String(status) === 'true' || status === true;
-    const carousel = await Carousel.findByIdAndUpdate(
-      req.params.id,
+    const carousel = await Carousel.findOneAndUpdate(
+      { _id: req.params.id, jewellerId: req.jewellerId },
       { status: newStatus },
       { new: true }
     );
@@ -176,7 +199,10 @@ exports.toggleStatus = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteCarousel = async (req, res, next) => {
   try {
-    const carousel = await Carousel.findByIdAndDelete(req.params.id);
+    const carousel = await Carousel.findOneAndDelete({
+      _id: req.params.id,
+      jewellerId: req.jewellerId,
+    });
 
     if (!carousel) {
       return res.status(404).json({

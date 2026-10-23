@@ -10,9 +10,14 @@ const generateTxnRef = (prefix = 'WLT') => {
 // @access  Private
 const getWalletBalance = async (req, res) => {
   try {
-    let wallet = await Wallet.findOne({ userId: req.user._id });
+    let wallet = await Wallet.findOne({ userId: req.user._id, jewellerId: req.jewellerId });
     if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user._id, cashBalance: 0, goldGramBalance: 0 });
+      wallet = await Wallet.create({
+        userId: req.user._id,
+        jewellerId: req.jewellerId,
+        cashBalance: 0,
+        goldGramBalance: 0,
+      });
     }
     res.status(200).json({ success: true, data: wallet });
   } catch (error) {
@@ -24,38 +29,10 @@ const getWalletBalance = async (req, res) => {
 // @route   POST /api/v1/wallet/deposit
 // @access  Private
 const depositCash = async (req, res) => {
-  const { amount } = req.body;
-  if (!amount || amount <= 0) {
-    return res.status(400).json({ success: false, message: 'Valid deposit amount is required' });
-  }
-
-  try {
-    const depositAmt = Number(amount);
-    let wallet = await Wallet.findOne({ userId: req.user._id });
-    if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user._id, cashBalance: 0, goldGramBalance: 0 });
-    }
-
-    wallet.cashBalance = Number((wallet.cashBalance + depositAmt).toFixed(2));
-    await wallet.save();
-
-    const txn = await Transaction.create({
-      userId: req.user._id,
-      txnReference: generateTxnRef('DEP'),
-      type: 'WALLET_DEPOSIT',
-      amount: depositAmt,
-      paymentMode: 'GATEWAY',
-      status: 'SUCCESS'
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `₹${depositAmt} deposited into wallet successfully.`,
-      data: { wallet, transaction: txn }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  return res.status(501).json({
+    success: false,
+    message: 'Wallet deposits are unavailable until payment gateway verification is implemented',
+  });
 };
 
 // @desc    Withdraw Cash to Bank Account
@@ -69,7 +46,7 @@ const withdrawCash = async (req, res) => {
 
   try {
     const withdrawAmt = Number(amount);
-    let wallet = await Wallet.findOne({ userId: req.user._id });
+    let wallet = await Wallet.findOne({ userId: req.user._id, jewellerId: req.jewellerId });
 
     if (!wallet || wallet.cashBalance < withdrawAmt) {
       return res.status(400).json({ 
@@ -83,6 +60,7 @@ const withdrawCash = async (req, res) => {
 
     const txn = await Transaction.create({
       userId: req.user._id,
+      jewellerId: req.jewellerId,
       txnReference: generateTxnRef('WDR'),
       type: 'WALLET_WITHDRAWAL',
       amount: withdrawAmt,

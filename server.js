@@ -14,6 +14,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const carouselRoutes = require('./routes/carouselRoutes');
 const masterAdminRoutes = require('./routes/masterAdminRoutes');
+const storeRoutes = require('./routes/storeRoutes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/masteradmin', masterAdminRoutes);
+app.use('/api/v1/stores', storeRoutes);
 app.use('/api/v1/carousels', carouselRoutes);
 
 // Health Check

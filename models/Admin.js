@@ -18,6 +18,11 @@ const adminSchema = new mongoose.Schema(
       default: "Admin",
     },
     mobile: { type: Number, required: true },
+    jewellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Jeweller",
+      required: true,
+    },
     status: {
       type: String,
       enum: ["ACTIVE", "INACTIVE"],
@@ -26,5 +31,7 @@ const adminSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+adminSchema.index({ jewellerId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Admin", adminSchema);

@@ -13,7 +13,7 @@ const generateTxnRef = (prefix = 'TXN') => {
 // @access  Public
 const getLivePrice = async (req, res) => {
   try {
-    let priceDoc = await GoldPrice.findOne().sort({ createdAt: -1 });
+    let priceDoc = await GoldPrice.findOne({ jewellerId: req.jewellerId }).sort({ createdAt: -1 });
 
     // Fallback default market rate if database has no entries
     if (!priceDoc) {
@@ -43,10 +43,21 @@ const getLivePrice = async (req, res) => {
 // @route   POST /api/v1/gold/buy
 // @access  Private
 const buyGold = async (req, res) => {
-  const { amount, grams, paymentMode } = req.body; // Pass amount in INR or grams
+  const { amount, grams, paymentMode } = req.body || {}; // Pass amount in INR or grams
+
+  const pMode = paymentMode || 'WALLET';
+  if (pMode !== 'WALLET') {
+    if (pMode === 'GATEWAY') {
+      return res.status(501).json({
+        success: false,
+        message: 'Gateway gold purchases are unavailable until payment verification is implemented',
+      });
+    }
+    return res.status(400).json({ success: false, message: 'Unsupported payment mode' });
+  }
 
   try {
-    const livePrice = await GoldPrice.findOne().sort({ createdAt: -1 });
+    const livePrice = await GoldPrice.findOne({ jewellerId: req.jewellerId }).sort({ createdAt: -1 });
     const buyPrice = livePrice ? livePrice.buyPrice : 7250;
     const gstRate = livePrice ? livePrice.gstRate : 3;
 
@@ -68,34 +79,32 @@ const buyGold = async (req, res) => {
     const gstAmount = Number((totalAmount - (totalAmount / (1 + gstRate / 100))).toFixed(2));
 
     // Get User Wallet
-    let wallet = await Wallet.findOne({ userId: req.user._id });
+    let wallet = await Wallet.findOne({ userId: req.user._id, jewellerId: req.jewellerId });
     if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user._id, cashBalance: 0, goldGramBalance: 0 });
+      wallet = await Wallet.create({
+        userId: req.user._id,
+        jewellerId: req.jewellerId,
+        cashBalance: 0,
+        goldGramBalance: 0,
+      });
     }
 
-    const pMode = paymentMode || 'WALLET';
-
-    if (pMode === 'WALLET') {
-      if (wallet.cashBalance < totalAmount) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Insufficient wallet balance. Available: ₹${wallet.cashBalance}, Required: ₹${totalAmount}` 
-        });
-      }
-
-      // Deduct cash & credit gold
-      wallet.cashBalance = Number((wallet.cashBalance - totalAmount).toFixed(2));
-      wallet.goldGramBalance = Number((wallet.goldGramBalance + goldGrams).toFixed(4));
-      await wallet.save();
-    } else {
-      // Gateway simulation
-      wallet.goldGramBalance = Number((wallet.goldGramBalance + goldGrams).toFixed(4));
-      await wallet.save();
+    if (wallet.cashBalance < totalAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Available: ₹${wallet.cashBalance}, Required: ₹${totalAmount}`,
+      });
     }
+
+    // Deduct cash & credit gold.
+    wallet.cashBalance = Number((wallet.cashBalance - totalAmount).toFixed(2));
+    wallet.goldGramBalance = Number((wallet.goldGramBalance + goldGrams).toFixed(4));
+    await wallet.save();
 
     // Save Transaction
     const txn = await Transaction.create({
       userId: req.user._id,
+      jewellerId: req.jewellerId,
       txnReference: generateTxnRef('BUY'),
       type: 'BUY_GOLD',
       amount: totalAmount,
@@ -135,13 +144,13 @@ const sellGold = async (req, res) => {
   }
 
   try {
-    const livePrice = await GoldPrice.findOne().sort({ createdAt: -1 });
+    const livePrice = await GoldPrice.findOne({ jewellerId: req.jewellerId }).sort({ createdAt: -1 });
     const sellPrice = livePrice ? livePrice.sellPrice : 7030;
 
     const goldGramsToSell = Number(grams);
     const payoutAmount = Number((goldGramsToSell * sellPrice).toFixed(2));
 
-    let wallet = await Wallet.findOne({ userId: req.user._id });
+    let wallet = await Wallet.findOne({ userId: req.user._id, jewellerId: req.jewellerId });
     if (!wallet || wallet.goldGramBalance < goldGramsToSell) {
       return res.status(400).json({ 
         success: false, 
@@ -157,6 +166,7 @@ const sellGold = async (req, res) => {
     // Create Transaction
     const txn = await Transaction.create({
       userId: req.user._id,
+      jewellerId: req.jewellerId,
       txnReference: generateTxnRef('SELL'),
       type: 'SELL_GOLD',
       amount: payoutAmount,

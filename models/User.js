@@ -6,6 +6,11 @@ const userSchema = new mongoose.Schema({
   mobile: { type: String, required: true, unique: true, index: true },
   email: { type: String, lowercase: true, trim: true, default: "" },
   fcmToken: { type: String, default: "" },
+  jewellerIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Jeweller',
+    index: true,
+  }],
   kycStatus: { 
     type: String, 
     enum: ['NOT_SUBMITTED', 'PENDING', 'APPROVED', 'REJECTED'], 

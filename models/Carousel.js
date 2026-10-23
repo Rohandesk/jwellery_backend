@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 
 const carouselSchema = new mongoose.Schema(
   {
+    jewellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Jeweller',
+      required: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,

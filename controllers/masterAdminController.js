@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Admin = require('../models/Admin');
+const Jeweller = require('../models/Jeweller');
 const MasterAdmin = require('../models/MasterAdmin');
 
 const jwtSecret = () =>
@@ -31,6 +32,7 @@ const publicAdmin = (admin) => ({
   lastname: admin.lastname,
   role: admin.role,
   mobile: admin.mobile,
+  jewellerId: admin.jewellerId,
   status: admin.status,
 });
 
@@ -133,19 +135,6 @@ const loginMasterAdmin = async (req, res) => {
   }
 };
 
-const getMasterAdmins = async (req, res) => {
-  try {
-    const masterAdmins = await MasterAdmin.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      success: true,
-      data: masterAdmins.map(publicMasterAdmin),
-    });
-  } catch (error) {
-    console.error('Master admin listing error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
 const getMasterAdmin = async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: 'Invalid master admin ID' });
@@ -233,13 +222,20 @@ const deleteMasterAdmin = async (req, res) => {
 
 const createAdmin = async (req, res) => {
   try {
-    const { email, password, firstname, lastname, mobile, status } = req.body || {};
+    const { email, password, firstname, lastname, mobile, status, jewellerId } = req.body || {};
 
-    if (!email || !password || !mobile) {
+    if (!email || !password || !mobile || !jewellerId) {
       return res.status(400).json({
         success: false,
-        message: 'Email, password and mobile are required',
+        message: 'Email, password, mobile and jewellerId are required',
       });
+    }
+    if (!mongoose.isValidObjectId(jewellerId)) {
+      return res.status(400).json({ success: false, message: 'Invalid jewellerId' });
+    }
+    const jeweller = await Jeweller.findById(jewellerId);
+    if (!jeweller) {
+      return res.status(404).json({ success: false, message: 'Jeweller store not found' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -250,6 +246,7 @@ const createAdmin = async (req, res) => {
       lastname,
       role: 'Admin',
       mobile,
+      jewellerId: jeweller._id,
       ...(status !== undefined && { status }),
     });
 
@@ -260,7 +257,10 @@ const createAdmin = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Admin email or mobile already exists' });
+      return res.status(409).json({
+        success: false,
+        message: 'Admin email or mobile already exists, or this store already has an admin',
+      });
     }
 
     if (error.name === 'ValidationError') {
@@ -310,8 +310,8 @@ const updateAdmin = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Admin not found' });
     }
 
-    const { email, firstname, lastname, mobile, status, password } = req.body || {};
-    if (![email, firstname, lastname, mobile, status, password].some((value) => value !== undefined)) {
+    const { email, firstname, lastname, mobile, status, password, jewellerId } = req.body || {};
+    if (![email, firstname, lastname, mobile, status, password, jewellerId].some((value) => value !== undefined)) {
       return res.status(400).json({ success: false, message: 'At least one admin field must be provided' });
     }
     if (email !== undefined) admin.email = email;
@@ -319,6 +319,16 @@ const updateAdmin = async (req, res) => {
     if (lastname !== undefined) admin.lastname = lastname;
     if (mobile !== undefined) admin.mobile = mobile;
     if (status !== undefined) admin.status = status;
+    if (jewellerId !== undefined) {
+      if (!mongoose.isValidObjectId(jewellerId)) {
+        return res.status(400).json({ success: false, message: 'Invalid jewellerId' });
+      }
+      const jeweller = await Jeweller.findById(jewellerId);
+      if (!jeweller) {
+        return res.status(404).json({ success: false, message: 'Jeweller store not found' });
+      }
+      admin.jewellerId = jeweller._id;
+    }
     if (password !== undefined) {
       if (!password) {
         return res.status(400).json({ success: false, message: 'Password cannot be empty' });
@@ -334,7 +344,10 @@ const updateAdmin = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Admin email or mobile already exists' });
+      return res.status(409).json({
+        success: false,
+        message: 'Admin email or mobile already exists, or this store already has an admin',
+      });
     }
     if (error.name === 'ValidationError' || error.name === 'CastError') {
       return res.status(400).json({ success: false, message: error.message });
@@ -368,7 +381,6 @@ const deleteAdmin = async (req, res) => {
 module.exports = {
   registerMasterAdmin,
   loginMasterAdmin,
-  getMasterAdmins,
   getMasterAdmin,
   updateMasterAdmin,
   deleteMasterAdmin,

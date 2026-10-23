@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const Admin = require('../models/Admin');
 const MasterAdmin = require('../models/MasterAdmin');
+const Jeweller = require('../models/Jeweller');
+const mongoose = require('mongoose');
 
 const protectAdmin = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -15,7 +17,21 @@ const protectAdmin = async (req, res, next) => {
           return res.status(401).json({ success: false, message: 'Master admin session invalid' });
         }
 
+        const jewellerId = req.get('x-jeweller-id');
+        if (!jewellerId || !mongoose.isValidObjectId(jewellerId)) {
+          return res.status(400).json({
+            success: false,
+            message: 'A valid x-jeweller-id header is required for master-admin store actions',
+          });
+        }
+        const jeweller = await Jeweller.findById(jewellerId);
+        if (!jeweller) {
+          return res.status(404).json({ success: false, message: 'Jeweller store not found' });
+        }
+
         req.masterAdmin = masterAdmin;
+        req.jeweller = jeweller;
+        req.jewellerId = jeweller._id;
         return next();
       }
 
@@ -30,6 +46,15 @@ const protectAdmin = async (req, res, next) => {
       if (req.admin.status !== 'ACTIVE') {
         return res.status(403).json({ success: false, message: 'Active admin status required' });
       }
+      if (!req.admin.jewellerId) {
+        return res.status(403).json({ success: false, message: 'Admin is not assigned to a jeweller store' });
+      }
+      const jeweller = await Jeweller.findOne({ _id: req.admin.jewellerId, status: 'ACTIVE' });
+      if (!jeweller) {
+        return res.status(403).json({ success: false, message: 'Assigned jeweller store is not active' });
+      }
+      req.jeweller = jeweller;
+      req.jewellerId = jeweller._id;
       return next();
     } catch (error) {
       return res.status(401).json({ success: false, message: 'Admin authorization failed' });

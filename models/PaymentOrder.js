@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const paymentOrderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  jewellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Jeweller', required: true, index: true },
   gatewayOrderId: { type: String, required: true, unique: true, index: true },
   paymentGateway: { type: String, enum: ['RAZORPAY', 'PHONEPE', 'PAYTM'], default: 'RAZORPAY' },
   amount: { type: Number, required: true },

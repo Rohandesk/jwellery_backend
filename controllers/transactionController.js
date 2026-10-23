@@ -7,7 +7,7 @@ const getTransactions = async (req, res) => {
   try {
     const { type, status, limit = 20, page = 1 } = req.query;
 
-    const filter = { userId: req.user._id };
+    const filter = { userId: req.user._id, jewellerId: req.jewellerId };
     if (type) filter.type = type;
     if (status) filter.status = status;
 
@@ -41,7 +41,11 @@ const getTransactions = async (req, res) => {
 // @access  Private
 const getTransactionById = async (req, res) => {
   try {
-    const txn = await Transaction.findOne({ _id: req.params.id, userId: req.user._id });
+    const txn = await Transaction.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+      jewellerId: req.jewellerId,
+    });
     if (!txn) {
       return res.status(404).json({ success: false, message: 'Transaction record not found' });
     }

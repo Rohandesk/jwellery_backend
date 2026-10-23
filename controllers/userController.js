@@ -6,7 +6,15 @@ const Settings = require('../models/Settings');
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-__v');
-    const wallet = await Wallet.findOne({ userId: req.user._id });
+    let wallet = await Wallet.findOne({ userId: req.user._id, jewellerId: req.jewellerId });
+    if (!wallet) {
+      wallet = await Wallet.create({
+        userId: req.user._id,
+        jewellerId: req.jewellerId,
+        cashBalance: 0,
+        goldGramBalance: 0,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -65,7 +73,7 @@ const submitKyc = async (req, res) => {
 // @desc    Get Dynamic App Theme & Global Settings (with Text Color)
 const getAppThemeSettings = async (req, res) => {
   try {
-    let themeSetting = await Settings.findOne({ key: 'app_theme' });
+    let themeSetting = await Settings.findOne({ key: 'app_theme', jewellerId: req.jewellerId });
     if (!themeSetting) {
       themeSetting = {
         value: {

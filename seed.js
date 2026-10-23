@@ -2,6 +2,7 @@ require('dotenv').config();
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); } catch (e) {}
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 const User = require('./models/User');
 const Wallet = require('./models/Wallet');
 const Transaction = require('./models/Transaction');
@@ -9,30 +10,55 @@ const GoldPrice = require('./models/GoldPrice');
 const Notification = require('./models/Notification');
 const Admin = require('./models/Admin');
 const Carousel = require('./models/Carousel');
+const Jeweller = require('./models/Jeweller');
+const Branch = require('./models/Branch');
+const Staff = require('./models/Staff');
+const UserStore = require('./models/UserStore');
 
 const seedData = async () => {
   try {
-    const mongoUri = process.env.MONGODB_CREDENTIALS;
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGODB_CREDENTIALS;
+    if (!mongoUri) {
+      throw new Error('MONGODB_URI is required');
+    }
     await mongoose.connect(mongoUri);
     console.log('[Seed] Connected to MongoDB database...');
 
     // Clear existing collections
     await User.deleteMany({});
+    await UserStore.deleteMany({});
     await Wallet.deleteMany({});
     await Transaction.deleteMany({});
     await GoldPrice.deleteMany({});
     await Notification.deleteMany({});
     await Admin.deleteMany({});
     await Carousel.deleteMany({});
+    await Branch.deleteMany({});
+    await Staff.deleteMany({});
+    await Jeweller.deleteMany({});
 
     console.log('[Seed] Cleared old data.');
+
+    const jeweller = await Jeweller.create({
+      businessName: 'DigiGold Demo Store',
+      slug: 'digigold-demo-store',
+      gstin: '27ABCDE1234F1Z5',
+      ownerName: 'DigiGold Demo',
+      contactEmail: 'store@digigold.com',
+      contactMobile: '9000000000',
+      status: 'ACTIVE',
+    });
 
     // 1. Seed Admin
     const admin = await Admin.create({
       email: 'admin@digigold.com',
-      password: 'admin123',
-      name: 'DigiGold Super Admin',
-      role: 'SUPER_ADMIN'
+      password: await bcrypt.hash('admin123', 12),
+      firstname: 'DigiGold',
+      lastname: 'Admin',
+      mobile: 9000000001,
+      role: 'Admin',
+      jewellerId: jeweller._id,
+      status: 'ACTIVE',
     });
     console.log('✓ Admin account created: admin@digigold.com / admin123');
 
@@ -41,6 +67,7 @@ const seedData = async () => {
       buyPrice: 7250,
       sellPrice: 7030,
       gstRate: 3,
+      jewellerId: jeweller._id,
       updatedBy: admin._id
     });
     console.log('✓ Initial Gold Price set: Buy ₹7,250/g, Sell ₹7,030/g');
@@ -52,12 +79,15 @@ const seedData = async () => {
       mobile: '9876543210',
       email: 'rohit@example.com',
       kycStatus: 'APPROVED',
+      jewellerIds: [jeweller._id],
       panNumber: 'ABCDE1234F',
       aadhaarNumber: '123456789012'
     });
+    await UserStore.create({ userId: user._id, jewellerId: jeweller._id });
 
     const wallet = await Wallet.create({
       userId: user._id,
+      jewellerId: jeweller._id,
       cashBalance: 15400.50,
       goldGramBalance: 2.5000
     });
@@ -67,6 +97,7 @@ const seedData = async () => {
     await Transaction.create([
       {
         userId: user._id,
+        jewellerId: jeweller._id,
         txnReference: 'BUY1720000001',
         type: 'BUY_GOLD',
         amount: 5000,
@@ -78,6 +109,7 @@ const seedData = async () => {
       },
       {
         userId: user._id,
+        jewellerId: jeweller._id,
         txnReference: 'DEP1720000002',
         type: 'WALLET_DEPOSIT',
         amount: 20000,
@@ -86,6 +118,7 @@ const seedData = async () => {
       },
       {
         userId: user._id,
+        jewellerId: jeweller._id,
         txnReference: 'SELL1720000003',
         type: 'SELL_GOLD',
         amount: 3515,
@@ -100,12 +133,14 @@ const seedData = async () => {
     // 5. Seed Notifications
     await Notification.create([
       {
+        jewellerId: jeweller._id,
         userId: user._id,
         title: '🎉 Welcome to DigiGold!',
         message: 'Start investing in 24K pure gold with as low as ₹10.',
         category: 'SYSTEM'
       },
       {
+        jewellerId: jeweller._id,
         userId: null, // Broadcast
         title: '🚀 Festive Offer!',
         message: 'Get 1% extra gold bonus on purchases above ₹10,000.',
@@ -117,6 +152,7 @@ const seedData = async () => {
     // 6. Seed Multi-Position Carousels (jewellery-platform logic)
     await Carousel.create([
       {
+        jewellerId: jeweller._id,
         name: 'Invest in 24K Pure Digital Gold',
         position: 'Home Top',
         type: 'Horizontal',
@@ -127,6 +163,7 @@ const seedData = async () => {
         status: true,
       },
       {
+        jewellerId: jeweller._id,
         name: 'Akshaya Tritiya Gold Cashback Bonanza',
         position: 'Home Top',
         type: 'Horizontal',
@@ -137,6 +174,7 @@ const seedData = async () => {
         status: true,
       },
       {
+        jewellerId: jeweller._id,
         name: 'Daily Gold Saver Micro-Savings Plan',
         position: 'Home Middle',
         type: 'Vertical',
@@ -147,6 +185,7 @@ const seedData = async () => {
         status: true,
       },
       {
+        jewellerId: jeweller._id,
         name: '100% Insured Doorstep Physical Gold Delivery',
         position: 'Home Bottom',
         type: 'Horizontal',
@@ -157,6 +196,7 @@ const seedData = async () => {
         status: true,
       },
       {
+        jewellerId: jeweller._id,
         name: 'Automate Wealth with Monthly Gold SIP',
         position: 'SIP Main',
         type: 'Horizontal',

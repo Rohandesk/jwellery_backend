@@ -4,9 +4,12 @@ const GoldPrice = require('../models/GoldPrice');
 const Transaction = require('../models/Transaction');
 const Notification = require('../models/Notification');
 const Settings = require('../models/Settings');
+const Jeweller = require('../models/Jeweller');
+const UserStore = require('../models/UserStore');
 const { admin } = require('../config/firebase');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 const generateAdminToken = (id) => {
   return jwt.sign(
@@ -27,7 +30,11 @@ const adminLogin = async (req, res) => {
       ? await bcrypt.compare(password, adminDoc.password)
       : false;
 
-    if (!adminDoc || adminDoc.status !== 'ACTIVE' || !passwordMatches) {
+    const jeweller = adminDoc && adminDoc.jewellerId
+      ? await Jeweller.findOne({ _id: adminDoc.jewellerId, status: 'ACTIVE' })
+      : null;
+
+    if (!adminDoc || adminDoc.status !== 'ACTIVE' || !passwordMatches || !jeweller) {
       return res.status(401).json({ success: false, message: 'Invalid admin email or password' });
     }
 
@@ -44,6 +51,7 @@ const adminLogin = async (req, res) => {
           email: adminDoc.email,
           role: adminDoc.role,
           mobile: adminDoc.mobile,
+          jewellerId: adminDoc.jewellerId,
           status: adminDoc.status
         }
       }
@@ -56,16 +64,48 @@ const adminLogin = async (req, res) => {
 // Dashboard Stats
 const getDashboardStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ status: 'ACTIVE' });
-    const totalTransactions = await Transaction.countDocuments();
+    const [customerStats] = await UserStore.aggregate([
+      { $match: { jewellerId: req.jewellerId } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $group: {
+          _id: null,
+          totalUsers: { $sum: 1 },
+          activeUsers: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'ACTIVE'] },
+                    { $eq: ['$user.status', 'ACTIVE'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    const totalUsers = customerStats ? customerStats.totalUsers : 0;
+    const activeUsers = customerStats ? customerStats.activeUsers : 0;
+    const totalTransactions = await Transaction.countDocuments({ jewellerId: req.jewellerId });
 
     const buyVolume = await Transaction.aggregate([
-      { $match: { type: 'BUY_GOLD', status: 'SUCCESS' } },
+      { $match: { jewellerId: req.jewellerId, type: 'BUY_GOLD', status: 'SUCCESS' } },
       { $group: { _id: null, totalGrams: { $sum: '$goldGrams' }, totalRevenue: { $sum: '$amount' } } }
     ]);
 
-    const latestPrice = await GoldPrice.findOne().sort({ createdAt: -1 });
+    const latestPrice = await GoldPrice.findOne({ jewellerId: req.jewellerId }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -95,6 +135,7 @@ const updateGoldPrice = async (req, res) => {
       buyPrice: Number(buyPrice),
       sellPrice: Number(sellPrice),
       gstRate: gstRate ? Number(gstRate) : 3,
+      jewellerId: req.jewellerId,
       ...(req.admin
         ? { updatedBy: req.admin._id }
         : { updatedByMasterAdmin: req.masterAdmin._id }),
@@ -111,7 +152,7 @@ const updateAppThemeSettings = async (req, res) => {
   const { primaryColor, secondaryColor, backgroundColor, appName, supportWhatsapp, bannerText } = req.body;
 
   try {
-    let themeSetting = await Settings.findOne({ key: 'app_theme' });
+    let themeSetting = await Settings.findOne({ key: 'app_theme', jewellerId: req.jewellerId });
     const themeVal = {
       primaryColor: primaryColor || '#0D234A',
       secondaryColor: secondaryColor || '#FFD700',
@@ -122,7 +163,12 @@ const updateAppThemeSettings = async (req, res) => {
     };
 
     if (!themeSetting) {
-      themeSetting = await Settings.create({ key: 'app_theme', value: themeVal, description: 'Dynamic App Theme & Branding' });
+      themeSetting = await Settings.create({
+        key: 'app_theme',
+        jewellerId: req.jewellerId,
+        value: themeVal,
+        description: 'Dynamic App Theme & Branding',
+      });
     } else {
       themeSetting.value = themeVal;
       await themeSetting.save();
@@ -143,7 +189,20 @@ const broadcastNotification = async (req, res) => {
   if (!title || !message) return res.status(400).json({ success: false, message: 'Title and message required' });
 
   try {
-    const notif = await Notification.create({ userId: userId || null, title, message, category: category || 'PROMO' });
+    if (userId && !await UserStore.exists({
+      userId,
+      jewellerId: req.jewellerId,
+      status: 'ACTIVE',
+    })) {
+      return res.status(404).json({ success: false, message: 'User is not registered with this store' });
+    }
+    const notif = await Notification.create({
+      jewellerId: req.jewellerId,
+      userId: userId || null,
+      title,
+      message,
+      category: category || 'PROMO',
+    });
     res.status(200).json({ success: true, message: 'Notification broadcasted', data: notif });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -152,10 +211,61 @@ const broadcastNotification = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 }).select('-__v');
-    res.status(200).json({ success: true, data: users });
+    const memberships = await UserStore.find({ jewellerId: req.jewellerId })
+      .sort({ createdAt: -1 })
+      .populate('userId', '-__v');
+    const users = memberships
+      .filter((membership) => membership.userId)
+      .map((membership) => ({
+        ...membership.userId.toObject(),
+        storeStatus: membership.status,
+      }));
+    return res.status(200).json({ success: true, data: users });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Store customer listing error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateStoreCustomerStatus = async (req, res) => {
+  const { status } = req.body || {};
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Status must be ACTIVE or INACTIVE',
+    });
+  }
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid customer ID' });
+  }
+
+  try {
+    const user = await User.exists({ _id: req.params.id });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    const membership = await UserStore.findOneAndUpdate(
+      { userId: req.params.id, jewellerId: req.jewellerId },
+      { $set: { status } },
+      { new: true, runValidators: true },
+    );
+    if (!membership) {
+      return res.status(404).json({ success: false, message: 'Customer is not registered with this store' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Customer ${status === 'ACTIVE' ? 'activated' : 'deactivated'} for this store`,
+      data: {
+        userId: membership.userId,
+        jewellerId: membership.jewellerId,
+        status: membership.status,
+      },
+    });
+  } catch (error) {
+    console.error('Store customer status update error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -166,4 +276,5 @@ module.exports = {
   updateAppThemeSettings,
   broadcastNotification,
   getAllUsers,
+  updateStoreCustomerStatus,
 };

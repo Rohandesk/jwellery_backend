@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { protectAdmin } = require('../middlewares/adminMiddleware');
+const { requireActiveJeweller } = require('../middlewares/jewellerMiddleware');
 const {
   getAllCarousels,
+  getAllCarouselsForAdmin,
   getCarouselById,
   createCarousel,
   updateCarousel,
@@ -10,9 +12,10 @@ const {
   deleteCarousel,
 } = require('../controllers/carouselController');
 
-// Public read routes
-router.get('/', getAllCarousels);
-router.get('/:id', getCarouselById);
+// Admin management can include disabled items; public reads only return active items.
+router.get('/manage', protectAdmin, getAllCarouselsForAdmin);
+router.get('/', requireActiveJeweller, getAllCarousels);
+router.get('/:id', requireActiveJeweller, getCarouselById);
 
 // Admin mutation routes
 router.post('/', protectAdmin, createCarousel);

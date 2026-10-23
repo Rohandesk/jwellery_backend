@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const Wallet = require('../models/Wallet');
 const { admin } = require('../config/firebase');
 
 const generateToken = (id, isAdmin = false) => {
@@ -11,52 +10,79 @@ const generateToken = (id, isAdmin = false) => {
   );
 };
 
+const normalizePhoneNumber = (phoneNumber) => String(phoneNumber).replace(/\D/g, '');
+
 // @desc    Verify Firebase OTP Token & Return JWT Session Token
 // @route   POST /api/v1/auth/verify-otp
 // @access  Public
 const verifyOtp = async (req, res) => {
-  const { firebaseToken, mobile, name } = req.body;
+  const { firebaseToken, mobile, name } = req.body || {};
 
-  if (!mobile) {
+  if (!mobile || !normalizePhoneNumber(mobile)) {
     return res.status(400).json({ success: false, message: 'Mobile number is required' });
   }
 
   try {
-    if (process.env.NODE_ENV === 'production' && (!firebaseToken || admin.apps.length === 0)) {
+    if (!firebaseToken) {
       return res.status(401).json({
         success: false,
         message: 'A valid Firebase sign-in token is required',
       });
     }
 
-    let firebaseUid = `uid_mock_${mobile}`;
-
-    // Verify with Firebase Admin if token provided & admin initialized
-    if (firebaseToken && admin.apps.length > 0) {
-      const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
-      firebaseUid = decodedToken.uid;
+    if (admin.apps.length === 0) {
+      return res.status(503).json({
+        success: false,
+        message: 'Firebase authentication is not configured',
+      });
     }
 
-    let user = await User.findOne({ mobile });
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (error) {
+      return res.status(401).json({ success: false, message: 'Invalid Firebase sign-in token' });
+    }
+
+    if (!decodedToken.phone_number ||
+      normalizePhoneNumber(decodedToken.phone_number) !== normalizePhoneNumber(mobile)) {
+      return res.status(401).json({
+        success: false,
+        message: 'The verified Firebase phone number does not match the submitted mobile number',
+      });
+    }
+    const firebaseUid = decodedToken.uid;
+    const verifiedMobile = decodedToken.phone_number;
+
+    let user = await User.findOne({ firebaseUid });
+    if (user && normalizePhoneNumber(user.mobile) !== normalizePhoneNumber(verifiedMobile)) {
+      return res.status(409).json({
+        success: false,
+        message: 'This Firebase account is registered with a different mobile number',
+      });
+    }
 
     if (!user) {
+      const existingMobile = await User.findOne({ mobile: verifiedMobile });
+      if (existingMobile) {
+        return res.status(409).json({
+          success: false,
+          message: 'This mobile number is already linked to another account',
+        });
+      }
+
       user = await User.create({
         firebaseUid,
-        mobile,
-        name: name || `Gold Investor ${mobile.slice(-4)}`
+        mobile: verifiedMobile,
+        name: name || `Gold Investor ${verifiedMobile.slice(-4)}`
       });
+    }
 
-      // Initialize Wallet for new User
-      await Wallet.create({
-        userId: user._id,
-        cashBalance: 0,
-        goldGramBalance: 0
-      });
+    if (user.status !== 'ACTIVE') {
+      return res.status(403).json({ success: false, message: 'Customer account is suspended' });
     }
 
     const token = generateToken(user._id);
-
-    const wallet = await Wallet.findOne({ userId: user._id });
 
     res.status(200).json({
       success: true,
@@ -69,8 +95,6 @@ const verifyOtp = async (req, res) => {
           mobile: user.mobile,
           email: user.email,
           kycStatus: user.kycStatus,
-          cashBalance: wallet ? wallet.cashBalance : 0,
-          goldGramBalance: wallet ? wallet.goldGramBalance : 0
         }
       }
     });
@@ -80,23 +104,12 @@ const verifyOtp = async (req, res) => {
   }
 };
 
-// @desc    Refresh session token
+// @desc    Refresh the authenticated customer's session token
 // @route   POST /api/v1/auth/refresh-token
-// @access  Public
+// @access  Private/Customer
 const refreshToken = async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) {
-    return res.status(400).json({ success: false, message: 'User ID is required' });
-  }
-  try {
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-    const token = generateToken(user._id);
-    res.status(200).json({ success: true, data: { token } });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  const token = generateToken(req.user._id);
+  return res.status(200).json({ success: true, data: { token } });
 };
 
 module.exports = { verifyOtp, refreshToken };

@@ -6,10 +6,16 @@ const Notification = require('../models/Notification');
 const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
+      jewellerId: req.jewellerId,
       $or: [{ userId: req.user._id }, { userId: null }]
     }).sort({ createdAt: -1 }).limit(50);
 
-    res.status(200).json({ success: true, data: notifications });
+    const data = notifications.map((notification) => {
+      const item = notification.toObject();
+      item.isRead = notification.readBy.some((userId) => String(userId) === String(req.user._id));
+      return item;
+    });
+    res.status(200).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -20,11 +26,13 @@ const getNotifications = async (req, res) => {
 // @access  Private
 const markAsRead = async (req, res) => {
   try {
-    const notif = await Notification.findById(req.params.id);
+    const notif = await Notification.findOneAndUpdate({
+      _id: req.params.id,
+      jewellerId: req.jewellerId,
+      $or: [{ userId: req.user._id }, { userId: null }],
+    }, { $addToSet: { readBy: req.user._id } }, { new: true });
     if (!notif) return res.status(404).json({ success: false, message: 'Notification not found' });
 
-    notif.isRead = true;
-    await notif.save();
     res.status(200).json({ success: true, message: 'Marked as read' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

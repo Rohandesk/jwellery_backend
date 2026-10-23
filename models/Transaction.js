@@ -7,6 +7,12 @@ const transactionSchema = new mongoose.Schema({
     required: true, 
     index: true 
   },
+  jewellerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Jeweller',
+    required: true,
+    index: true,
+  },
   txnReference: { 
     type: String, 
     required: true, 
