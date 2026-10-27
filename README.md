@@ -28,6 +28,7 @@ Register the first master admin with `POST /api/v1/masteradmin/register` and the
 
 Master admins must use a verified active master-admin bearer token for these account endpoints:
 
+- `POST /api/v1/masteradmin/masteradmins` creates an additional master admin (`email`, `password`, `firstname`, `lastname`, and `mobile` required). Active master admins only; up to three master-admin accounts total, including the first account created through `/register`.
 - `GET /api/v1/masteradmin/masteradmins/:id` retrieves the authenticated master admin's own account.
 - `PATCH /api/v1/masteradmin/masteradmins/:id` updates the authenticated master admin's own email, name, mobile, or password.
 - `DELETE /api/v1/masteradmin/masteradmins/:id` deletes the authenticated master admin's own account.

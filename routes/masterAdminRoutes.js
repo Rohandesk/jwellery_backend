@@ -2,6 +2,7 @@ const express = require('express');
 const {
   registerMasterAdmin,
   loginMasterAdmin,
+  createMasterAdmin,
   getMasterAdmin,
   updateMasterAdmin,
   deleteMasterAdmin,
@@ -28,6 +29,7 @@ const router = express.Router();
 // Public only for the first master-admin setup and login.
 router.post('/register', registerMasterAdmin);
 router.post('/login', loginMasterAdmin);
+router.post('/masteradmins', protectMasterAdmin, createMasterAdmin);
 router.route('/masteradmins/:id')
   .all(protectMasterAdmin, protectOwnMasterAdmin)
   .get(getMasterAdmin)

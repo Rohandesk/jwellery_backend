@@ -5,6 +5,8 @@ const Admin = require('../models/Admin');
 const Jeweller = require('../models/Jeweller');
 const MasterAdmin = require('../models/MasterAdmin');
 
+const MAX_MASTER_ADMINS = 3;
+
 const jwtSecret = () =>
   process.env.JWT_SECRET;
 
@@ -131,6 +133,55 @@ const loginMasterAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('Master admin login error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const createMasterAdmin = async (req, res) => {
+  const { email, password, firstname, lastname, mobile } = req.body || {};
+  if ([email, password, firstname, lastname, mobile].some(
+    (value) => typeof value !== 'string' || !value.trim(),
+  )) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email, password, firstname, lastname and mobile are required',
+    });
+  }
+
+  try {
+    const masterAdminCount = await MasterAdmin.countDocuments({});
+    if (masterAdminCount >= MAX_MASTER_ADMINS) {
+      return res.status(409).json({
+        success: false,
+        message: `A maximum of ${MAX_MASTER_ADMINS} master admins is allowed`,
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const masterAdmin = await MasterAdmin.create({
+      email: email.trim().toLowerCase(),
+      password: passwordHash,
+      firstname: firstname.trim(),
+      lastname: lastname.trim(),
+      mobile: mobile.trim(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Master admin created successfully',
+      data: publicMasterAdmin(masterAdmin),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Master admin email or mobile already exists',
+      });
+    }
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error('Master admin creation error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -381,6 +432,7 @@ const deleteAdmin = async (req, res) => {
 module.exports = {
   registerMasterAdmin,
   loginMasterAdmin,
+  createMasterAdmin,
   getMasterAdmin,
   updateMasterAdmin,
   deleteMasterAdmin,
