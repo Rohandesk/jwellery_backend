@@ -9,7 +9,7 @@ const protectAdmin = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       if (decoded.isMasterAdmin) {
         const masterAdmin = await MasterAdmin.findById(decoded.id);

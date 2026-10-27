@@ -5,7 +5,7 @@ const { admin } = require('../config/firebase');
 const generateToken = (id, isAdmin = false) => {
   return jwt.sign(
     { id, isAdmin },
-    process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production',
+    process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 };
