@@ -6,7 +6,7 @@ const protect = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded.isAdmin !== false || decoded.isMasterAdmin) {
         return res.status(403).json({ success: false, message: 'Customer access token required' });
       }

@@ -15,7 +15,7 @@ const protectMasterAdmin = async (req, res, next) => {
     const token = authorization.split(' ')[1];
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production',
+      process.env.JWT_SECRET,
     );
 
     if (!decoded.isMasterAdmin) {

@@ -6,7 +6,7 @@ const Jeweller = require('../models/Jeweller');
 const MasterAdmin = require('../models/MasterAdmin');
 
 const jwtSecret = () =>
-  process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production';
+  process.env.JWT_SECRET;
 
 const createToken = (masterAdminId) =>
   jwt.sign(

@@ -14,17 +14,20 @@ const mongoose = require('mongoose');
 const generateAdminToken = (id) => {
   return jwt.sign(
     { id, isAdmin: true },
-    process.env.JWT_SECRET || 'digigold_secret_jwt_key_2026_production',
+    process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
 };
 
 // Admin Login
 const adminLogin = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
+  if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password are required' });
+  }
 
   try {
-    let adminDoc = await Admin.findOne({ email });
+    let adminDoc = await Admin.findOne({ email: email.trim().toLowerCase() });
 
     const passwordMatches = adminDoc
       ? await bcrypt.compare(password, adminDoc.password)
@@ -115,7 +118,7 @@ const getDashboardStats = async (req, res) => {
         totalTransactions,
         goldSoldGrams: buyVolume[0] ? buyVolume[0].totalGrams : 0,
         totalRevenue: buyVolume[0] ? buyVolume[0].totalRevenue : 0,
-        currentGoldPrice: latestPrice || { buyPrice: 7250, sellPrice: 7030, gstRate: 3 }
+        currentGoldPrice: latestPrice || { buyPrice: 0, sellPrice: 0, gstRate: 0 }
       }
     });
   } catch (error) {
@@ -125,16 +128,21 @@ const getDashboardStats = async (req, res) => {
 
 // Update Gold Price
 const updateGoldPrice = async (req, res) => {
-  const { buyPrice, sellPrice, gstRate } = req.body;
-  if (!buyPrice || !sellPrice) {
-    return res.status(400).json({ success: false, message: 'Buy and Sell prices per gram are required' });
+  const { buyPrice, sellPrice, gstRate } = req.body || {};
+  const isNumericValue = (value) => typeof value === 'number' || (typeof value === 'string' && value.trim().length > 0);
+  const numericBuyPrice = Number(buyPrice);
+  const numericSellPrice = Number(sellPrice);
+  const numericGstRate = gstRate === undefined ? 3 : Number(gstRate);
+  if (!isNumericValue(buyPrice) || !Number.isFinite(numericBuyPrice) || numericBuyPrice <= 0 ||
+    !isNumericValue(sellPrice) || !Number.isFinite(numericSellPrice) || numericSellPrice <= 0 ||
+    (gstRate !== undefined && (!isNumericValue(gstRate) || !Number.isFinite(numericGstRate) || numericGstRate < 0))) {
+    return res.status(400).json({ success: false, message: 'Buy and sell prices must be positive numbers and GST must be a non-negative number' });
   }
-
   try {
     const newPrice = await GoldPrice.create({
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
-      gstRate: gstRate ? Number(gstRate) : 3,
+      buyPrice: numericBuyPrice,
+      sellPrice: numericSellPrice,
+      gstRate: numericGstRate,
       jewellerId: req.jewellerId,
       ...(req.admin
         ? { updatedBy: req.admin._id }
@@ -213,7 +221,7 @@ const getAllUsers = async (req, res) => {
   try {
     const memberships = await UserStore.find({ jewellerId: req.jewellerId })
       .sort({ createdAt: -1 })
-      .populate('userId', '-__v');
+      .populate('userId', 'name mobile email status kycStatus');
     const users = memberships
       .filter((membership) => membership.userId)
       .map((membership) => ({
